@@ -11,11 +11,24 @@ from maze import Maze
 from markers import MarkerPlacement
 
 
+def direction_to_yaw(direction: str) -> float:
+    """Convert direction string to yaw angle in radians."""
+    direction_map = {
+        'North': 0.0,
+        'East': 1.5708,  # 90 degrees
+        'South': 3.14159,  # 180 degrees
+        'West': -1.5708  # -90 degrees or 4.71239
+    }
+    return direction_map.get(direction, 0.0)
+
+
 def generate_gazebo_world(
     maze: Maze,
     marker_placement: MarkerPlacement,
     output_file: str = "gazebo/worlds/generated_maze.world",
-    use_ros_plugins: bool = True
+    use_ros_plugins: bool = True,
+    objects: list = None,
+    phase: str = "race"  # "discovery" or "race"
 ) -> None:
     """
     Generate a Gazebo world file with the maze.
@@ -24,6 +37,11 @@ def generate_gazebo_world(
         maze: The maze
         marker_placement: Marker placement
         output_file: Output world file path
+        use_ros_plugins: Whether to use ROS plugins
+        objects: List of objects, each as dict with keys: 'x', 'y', 'direction', 'type'
+                 where direction is 'North', 'East', 'South', or 'West'
+                 and type is 'house', 'tank', or 'tree'
+        phase: "discovery" (no objects) or "race" (with objects)
     """
     # Get absolute path for models
     import os
@@ -403,20 +421,141 @@ def generate_gazebo_world(
         lines.append(f'              <size>{marker_placement.marker_size} {marker_placement.marker_size} 0.002</size>')
         lines.append(f'            </box>')
         lines.append(f'          </geometry>')
+        # Use model:// URI format which is the standard for Gazebo
+        # Calculate relative path from models directory
+        texture_rel_path = os.path.relpath(abs_texture_path, models_dir)
+        texture_uri = f"model://aruco_marker/textures/{os.path.basename(abs_texture_path)}"
+        
         lines.append(f'          <material>')
         lines.append(f'            <pbr>')
         lines.append(f'              <metal>')
-        lines.append(f'                <albedo_map>file://{abs_texture_path}</albedo_map>')
-        lines.append(f'                <roughness>0.8</roughness>')
+        lines.append(f'                <albedo_map>{texture_uri}</albedo_map>')
+        lines.append(f'                <roughness>0.2</roughness>')
         lines.append(f'                <metalness>0.0</metalness>')
         lines.append(f'              </metal>')
         lines.append(f'            </pbr>')
+        lines.append(f'            <diffuse>1.0 1.0 1.0 1.0</diffuse>')
+        lines.append(f'            <ambient>1.0 1.0 1.0 1.0</ambient>')
         lines.append(f'          </material>')
         lines.append(f'        </visual>')
         lines.append(f'      </link>')
         lines.append(f'    </model>')
         lines.append('    ')
         marker_id += 1
+    
+    # Add objects as images on walls (only in race phase)
+    if objects is None:
+        objects = []
+    
+    if phase == "race" and objects:
+        object_height = 0.90  # Objects at 90cm height as per challenge rules
+        object_size = 0.3  # Size of object image (30cm)
+        object_id = 0
+        textures_dir = os.path.join(models_dir, 'object_images', 'textures')
+        
+        # Use same coordinate system as ArUcos and walls
+        marker_size = marker_placement.marker_size
+        gap = marker_placement.gap
+        marker_spacing = marker_size + gap
+        start_offset = marker_size / 2.0 + gap
+        
+        for obj in objects:
+            obj_x = obj['x']  # Column index
+            obj_y = obj['y']  # Row index
+            obj_direction = obj.get('direction', 'North')
+            obj_type = obj.get('type', 'house')  # house, tank, or tree
+            
+            # Get image path (prefer PNG, fallback to JPG)
+            image_file_png = f"{obj_type}.png"
+            image_file_jpg = f"{obj_type}.jpg"
+            image_path_png = os.path.join(textures_dir, image_file_png)
+            image_path_jpg = os.path.join(textures_dir, image_file_jpg)
+            
+            if os.path.exists(image_path_png):
+                abs_image_path = os.path.abspath(image_path_png)
+            elif os.path.exists(image_path_jpg):
+                abs_image_path = os.path.abspath(image_path_jpg)
+            else:
+                print(f"Warning: Image not found for {obj_type} at {textures_dir}")
+                continue
+            
+            # Calculate cell center using same system as ArUcos
+            # Cell (r, c) center is at: start_offset + (2*c+1)*marker_spacing/2, start_offset + (2*r+1)*marker_spacing/2
+            # Which simplifies to: start_offset + marker_spacing*(c + 0.5), start_offset + marker_spacing*(r + 0.5)
+            cell_center_x = start_offset + marker_spacing * (obj_x + 0.5)
+            cell_center_y = start_offset + marker_spacing * (obj_y + 0.5)
+            
+            # Half cell size in the marker coordinate system
+            half_cell = marker_spacing
+            
+            # Calculate position on wall based on direction
+            # Objects are placed on the wall facing the specified direction
+            if obj_direction == 'North':
+                # On North wall (top of cell)
+                wall_x = cell_center_x
+                wall_y = cell_center_y + half_cell
+                wall_yaw = 0.0  # Facing North
+            elif obj_direction == 'East':
+                # On East wall (right side of cell)
+                wall_x = cell_center_x + half_cell
+                wall_y = cell_center_y
+                wall_yaw = 1.5708  # 90 degrees, facing East
+            elif obj_direction == 'South':
+                # On South wall (bottom of cell)
+                wall_x = cell_center_x
+                wall_y = cell_center_y - half_cell
+                wall_yaw = 3.14159  # 180 degrees, facing South
+            else:  # West
+                # On West wall (left side of cell)
+                wall_x = cell_center_x - half_cell
+                wall_y = cell_center_y
+                wall_yaw = -1.5708  # -90 degrees, facing West
+            
+            # Create a plane with the image as texture
+            # The plane normal should face outward from the wall
+            # For North wall: normal should be (0, 1, 0) - facing North
+            # For East wall: normal should be (1, 0, 0) - facing East
+            # For South wall: normal should be (0, -1, 0) - facing South
+            # For West wall: normal should be (-1, 0, 0) - facing West
+            # But in Gazebo, planes use normal (0, 0, 1) and we rotate the model
+            
+            lines.append(f'    <!-- Object {object_id}: {obj_type} image at cell ({obj_x}, {obj_y}), direction {obj_direction} -->')
+            lines.append(f'    <model name="object_image_{object_id}">')
+            lines.append(f'      <static>true</static>')
+            lines.append(f'      <pose>{wall_x} {wall_y} {object_height} 0 0 {wall_yaw}</pose>')
+            lines.append(f'      <link name="link">')
+            lines.append(f'        <collision name="collision">')
+            lines.append(f'          <geometry>')
+            lines.append(f'            <box>')
+            lines.append(f'              <size>{object_size} {object_size} 0.001</size>')
+            lines.append(f'            </box>')
+            lines.append(f'          </geometry>')
+            lines.append(f'        </collision>')
+            lines.append(f'        <visual name="visual">')
+            lines.append(f'          <geometry>')
+            lines.append(f'            <box>')
+            lines.append(f'              <size>{object_size} {object_size} 0.001</size>')
+            lines.append(f'            </box>')
+            lines.append(f'          </geometry>')
+            # Use model:// URI format which is the standard for Gazebo
+            object_texture_uri = f"model://object_images/textures/{os.path.basename(abs_image_path)}"
+            
+            lines.append(f'          <material>')
+            lines.append(f'            <pbr>')
+            lines.append(f'              <metal>')
+            lines.append(f'                <albedo_map>{object_texture_uri}</albedo_map>')
+            lines.append(f'                <roughness>0.2</roughness>')
+            lines.append(f'                <metalness>0.0</metalness>')
+            lines.append(f'              </metal>')
+            lines.append(f'            </pbr>')
+            lines.append(f'            <diffuse>1.0 1.0 1.0 1.0</diffuse>')
+            lines.append(f'            <ambient>1.0 1.0 1.0 1.0</ambient>')
+            lines.append(f'          </material>')
+            lines.append(f'        </visual>')
+            lines.append(f'      </link>')
+            lines.append(f'    </model>')
+            lines.append('    ')
+            object_id += 1
     
     # Add drone (optionally without ROS plugins)
     # Place drone at center of cell (0, 0)
@@ -450,6 +589,8 @@ def generate_gazebo_world(
     print(f"  - {col_id} columns")
     print(f"  - {wall_id} wall segments")
     print(f"  - {marker_id} ArUco markers")
+    if phase == "race" and objects:
+        print(f"  - {len(objects)} objects at 0.90m height")
 
 
 def main():
@@ -464,8 +605,27 @@ def main():
     parser.add_argument('--seed', type=int, default=None, help='Random seed')
     parser.add_argument('--out', type=str, default='gazebo/worlds/generated_maze.world', help='Output file')
     parser.add_argument('--no-ros', action='store_true', help='Use drone model without ROS plugins')
+    parser.add_argument('--phase', type=str, default='race', choices=['discovery', 'race'], 
+                        help='Competition phase: discovery (no objects) or race (with objects)')
+    parser.add_argument('--objects', type=str, default=None, 
+                        help='JSON file with objects list, or JSON string. Format: [{"x": int, "y": int, "direction": "North|East|South|West", "type": "house|tank|tree"}]')
     
     args = parser.parse_args()
+    
+    # Parse objects
+    objects = None
+    if args.objects:
+        import json
+        if os.path.isfile(args.objects):
+            with open(args.objects, 'r') as f:
+                objects = json.load(f)
+        else:
+            # Try to parse as JSON string
+            try:
+                objects = json.loads(args.objects)
+            except json.JSONDecodeError:
+                print(f"Error: Could not parse objects as JSON file or string: {args.objects}")
+                sys.exit(1)
     
     # Generate maze
     maze = Maze(
@@ -480,7 +640,14 @@ def main():
     marker_placement = MarkerPlacement(maze, marker_size=args.markerSize)
     
     # Generate Gazebo world
-    generate_gazebo_world(maze, marker_placement, args.out, use_ros_plugins=not args.no_ros)
+    generate_gazebo_world(
+        maze, 
+        marker_placement, 
+        args.out, 
+        use_ros_plugins=not args.no_ros,
+        objects=objects,
+        phase=args.phase
+    )
 
 
 if __name__ == '__main__':

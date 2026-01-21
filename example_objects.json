@@ -1,0 +1,26 @@
+[
+  {
+    "x": 1,
+    "y": 4,
+    "direction": "North",
+    "type": "tank"
+  },
+  {
+    "x": 3,
+    "y": 4,
+    "direction": "East",
+    "type": "house"
+  },
+  {
+    "x": 2,
+    "y": 2,
+    "direction": "South",
+    "type": "tree"
+  },
+  {
+    "x": 1,
+    "y": 1,
+    "direction": "South",
+    "type": "house"
+  }
+]
