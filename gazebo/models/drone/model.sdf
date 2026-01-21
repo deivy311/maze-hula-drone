@@ -5,19 +5,19 @@
     
     <link name="base_link">
       <inertial>
-        <mass>1.0</mass>
+        <mass>0.1</mass>
         <inertia>
-          <ixx>0.029125</ixx>
-          <iyy>0.029125</iyy>
-          <izz>0.055225</izz>
+          <ixx>0.000096</ixx>
+          <iyy>0.000096</iyy>
+          <izz>0.000151</izz>
         </inertia>
       </inertial>
       
       <collision name="collision">
         <geometry>
           <cylinder>
-            <radius>0.15</radius>
-            <length>0.15</length>
+            <radius>0.055</radius>
+            <length>0.05</length>
           </cylinder>
         </geometry>
       </collision>
@@ -25,8 +25,8 @@
       <visual name="visual">
         <geometry>
           <cylinder>
-            <radius>0.15</radius>
-            <length>0.15</length>
+            <radius>0.055</radius>
+            <length>0.05</length>
           </cylinder>
         </geometry>
         <material>
@@ -36,12 +36,12 @@
         </material>
       </visual>
       
-      <!-- Add arms/propellers for better visibility (horizontal, above body) -->
+      <!-- Add arms/propellers for better visibility (scaled to drone size) -->
       <visual name="arm_1">
-        <pose>0.2 0.0 0.08 0 0 0</pose>
+        <pose>0.055 0.0 0.025 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.3 0.02 0.02</size>
+            <size>0.05 0.005 0.005</size>
           </box>
         </geometry>
         <material>
@@ -50,10 +50,10 @@
         </material>
       </visual>
       <visual name="arm_2">
-        <pose>-0.2 0.0 0.08 0 0 0</pose>
+        <pose>-0.055 0.0 0.025 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.3 0.02 0.02</size>
+            <size>0.05 0.005 0.005</size>
           </box>
         </geometry>
         <material>
@@ -62,10 +62,10 @@
         </material>
       </visual>
       <visual name="arm_3">
-        <pose>0.0 0.2 0.08 0 0 0</pose>
+        <pose>0.0 0.055 0.025 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.02 0.3 0.02</size>
+            <size>0.005 0.05 0.005</size>
           </box>
         </geometry>
         <material>
@@ -74,10 +74,10 @@
         </material>
       </visual>
       <visual name="arm_4">
-        <pose>0.0 -0.2 0.08 0 0 0</pose>
+        <pose>0.0 -0.055 0.025 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.02 0.3 0.02</size>
+            <size>0.005 0.05 0.005</size>
           </box>
         </geometry>
         <material>
@@ -108,11 +108,11 @@
     
     <!-- Camera link (pointing down) -->
     <link name="camera_link">
-      <pose>0 0 -0.05 0 1.5708 0</pose>
+      <pose>0 0 -0.03 0 1.5708 0</pose>
       <visual name="visual">
         <geometry>
           <box>
-            <size>0.02 0.02 0.02</size>
+            <size>0.015 0.015 0.015</size>
           </box>
         </geometry>
       </visual>
