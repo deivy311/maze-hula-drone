@@ -80,15 +80,100 @@ def generate_gazebo_world(
         '    '
     ]
     
-    # Add columns at all grid vertices
+    # Add columns at cell corners (where 4 ArUcos from 4 adjacent cells meet)
+    # Each cell has 2x2 ArUcos, so columns are placed every 2 ArUcos in each direction
+    # Columns are positioned at the MIDDLE between the corners of adjacent ArUcos
+    # Calculate marker spacing (same as in markers.py)
+    marker_size = marker_placement.marker_size
+    gap = marker_placement.gap
+    marker_spacing = marker_size + gap
+    start_offset = marker_size / 2.0 + gap
+    
     col_id = 0
+    # Columns are at cell corners: middle between corners of 4 ArUcos
+    # For cell (r, c), its corners are:
+    # - Top-left corner: middle between top-left corner of ArUco (2*r, 2*c) and top-right corner of ArUco (2*r, 2*c-1)
+    #   and between top-left corner of ArUco (2*r, 2*c) and bottom-left corner of ArUco (2*r-1, 2*c)
+    #
+    # Actually simpler: for cell (r, c) with ArUcos at positions:
+    # - Top-left ArUco at: (start_offset + 2*c * marker_spacing, start_offset + 2*r * marker_spacing)
+    #   Its corners: top-left at (x - marker_size/2, y - marker_size/2), top-right at (x + marker_size/2, y - marker_size/2)
+    # - Top-right ArUco at: (start_offset + (2*c+1) * marker_spacing, start_offset + 2*r * marker_spacing)
+    #   Its corners: top-left at (x - marker_size/2, y - marker_size/2), top-right at (x + marker_size/2, y - marker_size/2)
+    #
+    # Column at top-left corner of cell (r, c) is at the middle between:
+    # - Top-right corner of top-left ArUco: (start_offset + 2*c * marker_spacing + marker_size/2, start_offset + 2*r * marker_spacing - marker_size/2)
+    # - Top-left corner of top-right ArUco: (start_offset + (2*c+1) * marker_spacing - marker_size/2, start_offset + 2*r * marker_spacing - marker_size/2)
+    # Middle X: (start_offset + 2*c * marker_spacing + marker_size/2 + start_offset + (2*c+1) * marker_spacing - marker_size/2) / 2
+    #         = (2*start_offset + 2*c * marker_spacing + marker_size/2 + (2*c+1) * marker_spacing - marker_size/2) / 2
+    #         = (2*start_offset + 2*c * marker_spacing + 2*c * marker_spacing + marker_spacing) / 2
+    #         = (2*start_offset + 4*c * marker_spacing + marker_spacing) / 2
+    #         = start_offset + 2*c * marker_spacing + marker_spacing/2
+    
+    # Place columns at all cell corners (every 2 ArUcos)
     for r in range(maze.rows + 1):
         for c in range(maze.cols + 1):
-            x = c * maze.cell_size
-            y = r * maze.cell_size
-            # Use absolute path for model
+            # Column at corner: middle between corners of adjacent ArUcos
+            # Top-left corner of cell (r, c): middle between top-right corner of ArUco (2*r, 2*c-1) and top-left corner of ArUco (2*r, 2*c)
+            # But simpler: it's at the intersection where 4 ArUcos meet
+            # For cell corner, we need the middle between:
+            # - Horizontally: between right edge of left ArUco and left edge of right ArUco
+            # - Vertically: between bottom edge of top ArUco and top edge of bottom ArUco
+            
+            # Top-left corner of cell (r, c):
+            # - Left ArUco center: start_offset + (2*c-1) * marker_spacing (if c > 0)
+            # - Right ArUco center: start_offset + 2*c * marker_spacing
+            # Middle X: start_offset + ((2*c-1) + 2*c) * marker_spacing / 2 = start_offset + (4*c - 1) * marker_spacing / 2
+            # But for c=0, we use the left boundary
+            
+            # Actually, let's think of it as the middle between the corners of the 2x2 ArUco block
+            # For cell (r, c), the 4 ArUcos are at grid positions (2*r, 2*c), (2*r, 2*c+1), (2*r+1, 2*c), (2*r+1, 2*c+1)
+            # Top-left corner is where these 4 ArUcos meet
+            # It's the middle between:
+            # - Top-right corner of (2*r, 2*c-1) and top-left corner of (2*r, 2*c) horizontally
+            # - Bottom-left corner of (2*r-1, 2*c) and top-left corner of (2*r, 2*c) vertically
+            
+            # For the top-left corner of cell (r, c):
+            # If c > 0: middle between ArUco (2*r, 2*c-1) right edge and ArUco (2*r, 2*c) left edge
+            #   x = (start_offset + (2*c-1) * marker_spacing + marker_size/2 + start_offset + 2*c * marker_spacing - marker_size/2) / 2
+            #     = start_offset + (2*c-1 + 2*c) * marker_spacing / 2 = start_offset + (4*c - 1) * marker_spacing / 2
+            # If c == 0: at the left boundary, x = start_offset - marker_size/2 - gap/2
+            # Similar for y
+            
+            # Column at corner: middle between corners of adjacent ArUcos
+            # For cell corner (r, c), we need the middle between:
+            # - Horizontally: right corner of left ArUco and left corner of right ArUco
+            # - Vertically: bottom corner of top ArUco and top corner of bottom ArUco
+            
+            if c == 0:
+                # Left boundary: at the left edge
+                x = start_offset - marker_size / 2.0 - gap / 2.0
+            else:
+                # Middle between right corner of ArUco at (2*r, 2*c-1) and left corner of ArUco at (2*r, 2*c)
+                # Right corner of left ArUco: center + marker_size/2
+                left_aruco_center = start_offset + (2 * c - 1) * marker_spacing
+                right_corner_x = left_aruco_center + marker_size / 2.0
+                # Left corner of right ArUco: center - marker_size/2
+                right_aruco_center = start_offset + 2 * c * marker_spacing
+                left_corner_x = right_aruco_center - marker_size / 2.0
+                # Middle point
+                x = (right_corner_x + left_corner_x) / 2.0
+            
+            if r == 0:
+                # Top boundary: at the top edge
+                y = start_offset - marker_size / 2.0 - gap / 2.0
+            else:
+                # Middle between bottom corner of ArUco at (2*r-1, 2*c) and top corner of ArUco at (2*r, 2*c)
+                # Bottom corner of top ArUco: center + marker_size/2
+                top_aruco_center = start_offset + (2 * r - 1) * marker_spacing
+                bottom_corner_y = top_aruco_center + marker_size / 2.0
+                # Top corner of bottom ArUco: center - marker_size/2
+                bottom_aruco_center = start_offset + 2 * r * marker_spacing
+                top_corner_y = bottom_aruco_center - marker_size / 2.0
+                # Middle point
+                y = (bottom_corner_y + top_corner_y) / 2.0
             column_model_path = os.path.join(models_dir, 'column', 'model.sdf')
-            lines.append(f'    <!-- Column at ({r}, {c}) -->')
+            lines.append(f'    <!-- Column at cell corner ({r}, {c}) -->')
             lines.append(f'    <include>')
             lines.append(f'      <name>column_{col_id}</name>')
             lines.append(f'      <pose>{x} {y} 0.25 0 0 0</pose>')
@@ -98,11 +183,28 @@ def generate_gazebo_world(
             col_id += 1
     
     # Add wall segments
+    # Walls are placed in the middle between adjacent markers (same position as columns)
     wall_id = 0
-    cell_size = maze.cell_size
-    wall_thickness = maze.wall_thickness
+    # Use thinner walls (0.005)
+    wall_thickness = min(maze.wall_thickness, 0.005)
     
-    # Horizontal walls
+    # Calculate marker spacing and start position (same as in markers.py)
+    marker_size = marker_placement.marker_size
+    gap = marker_placement.gap
+    marker_spacing = marker_size + gap  # 1.5 * marker_size
+    start_offset = marker_size / 2.0 + gap
+    
+    # Calculate cell size based on marker spacing (2 markers per cell)
+    cell_size = 2 * marker_spacing  # 3 * marker_size
+    
+    # Horizontal walls (between ArUcos in same column, where there are walls)
+    # Walls are placed in the middle between adjacent ArUcos, same position as columns
+    total_marker_rows = 2 * maze.rows
+    total_marker_cols = 2 * maze.cols
+    
+    # Horizontal walls: connect columns horizontally where there are walls
+    # Walls extend from one column to the next column (every 2 ArUcos)
+    # Check walls between cell rows
     for r in range(maze.rows + 1):
         for c in range(maze.cols):
             has_wall = False
@@ -114,15 +216,39 @@ def generate_gazebo_world(
                 has_wall = maze.has_wall(r - 1, c, 'S')
             
             if has_wall:
-                x1 = c * cell_size
-                y1 = r * cell_size
-                x2 = (c + 1) * cell_size
-                y2 = r * cell_size
-                center_x = (x1 + x2) / 2.0
-                center_y = (y1 + y2) / 2.0
-                length = cell_size
+                # Wall extends horizontally from column at (r, c) to column at (r, c+1)
+                # Column positions (same calculation as above)
+                if c == 0:
+                    x_start = start_offset - marker_size / 2.0 - gap / 2.0
+                else:
+                    left_aruco_center = start_offset + (2 * c - 1) * marker_spacing
+                    right_corner_x = left_aruco_center + marker_size / 2.0
+                    right_aruco_center = start_offset + 2 * c * marker_spacing
+                    left_corner_x = right_aruco_center - marker_size / 2.0
+                    x_start = (right_corner_x + left_corner_x) / 2.0
                 
-                lines.append(f'    <!-- Horizontal wall at row {r}, col {c} -->')
+                # Column at (r, c+1)
+                left_aruco_center = start_offset + (2 * (c + 1) - 1) * marker_spacing
+                right_corner_x = left_aruco_center + marker_size / 2.0
+                right_aruco_center = start_offset + 2 * (c + 1) * marker_spacing
+                left_corner_x = right_aruco_center - marker_size / 2.0
+                x_end = (right_corner_x + left_corner_x) / 2.0
+                
+                # Wall Y position: same as column Y position for row r
+                if r == 0:
+                    y = start_offset - marker_size / 2.0 - gap / 2.0
+                else:
+                    top_aruco_center = start_offset + (2 * r - 1) * marker_spacing
+                    bottom_corner_y = top_aruco_center + marker_size / 2.0
+                    bottom_aruco_center = start_offset + 2 * r * marker_spacing
+                    top_corner_y = bottom_aruco_center - marker_size / 2.0
+                    y = (bottom_corner_y + top_corner_y) / 2.0
+                
+                center_x = (x_start + x_end) / 2.0
+                center_y = y
+                length = x_end - x_start
+                
+                lines.append(f'    <!-- Horizontal wall between columns at row {r}, cols {c} and {c+1} -->')
                 lines.append(f'    <model name="wall_h_{wall_id}">')
                 lines.append(f'      <static>true</static>')
                 lines.append(f'      <pose>{center_x} {center_y} 0.25 0 0 0</pose>')
@@ -152,7 +278,9 @@ def generate_gazebo_world(
                 lines.append('    ')
                 wall_id += 1
     
-    # Vertical walls
+    # Vertical walls: connect columns vertically where there are walls
+    # Walls extend from one column to the next column (every 2 ArUcos)
+    # Check walls between cell columns
     for c in range(maze.cols + 1):
         for r in range(maze.rows):
             has_wall = False
@@ -164,30 +292,54 @@ def generate_gazebo_world(
                 has_wall = maze.has_wall(r, c - 1, 'E')
             
             if has_wall:
-                x1 = c * cell_size
-                y1 = r * cell_size
-                x2 = c * cell_size
-                y2 = (r + 1) * cell_size
-                center_x = (x1 + x2) / 2.0
-                center_y = (y1 + y2) / 2.0
-                length = cell_size
+                # Wall extends vertically from column at (r, c) to column at (r+1, c)
+                # Column positions (same calculation as above)
+                if r == 0:
+                    y_start = start_offset - marker_size / 2.0 - gap / 2.0
+                else:
+                    top_aruco_center = start_offset + (2 * r - 1) * marker_spacing
+                    bottom_corner_y = top_aruco_center + marker_size / 2.0
+                    bottom_aruco_center = start_offset + 2 * r * marker_spacing
+                    top_corner_y = bottom_aruco_center - marker_size / 2.0
+                    y_start = (bottom_corner_y + top_corner_y) / 2.0
                 
-                lines.append(f'    <!-- Vertical wall at row {r}, col {c} -->')
+                # Column at (r+1, c)
+                top_aruco_center = start_offset + (2 * (r + 1) - 1) * marker_spacing
+                bottom_corner_y = top_aruco_center + marker_size / 2.0
+                bottom_aruco_center = start_offset + 2 * (r + 1) * marker_spacing
+                top_corner_y = bottom_aruco_center - marker_size / 2.0
+                y_end = (bottom_corner_y + top_corner_y) / 2.0
+                
+                # Wall X position: same as column X position for col c
+                if c == 0:
+                    x = start_offset - marker_size / 2.0 - gap / 2.0
+                else:
+                    left_aruco_center = start_offset + (2 * c - 1) * marker_spacing
+                    right_corner_x = left_aruco_center + marker_size / 2.0
+                    right_aruco_center = start_offset + 2 * c * marker_spacing
+                    left_corner_x = right_aruco_center - marker_size / 2.0
+                    x = (right_corner_x + left_corner_x) / 2.0
+                
+                center_x = x
+                center_y = (y_start + y_end) / 2.0
+                length = y_end - y_start
+                
+                lines.append(f'    <!-- Vertical wall between columns at col {c}, rows {r} and {r+1} -->')
                 lines.append(f'    <model name="wall_v_{wall_id}">')
                 lines.append(f'      <static>true</static>')
-                lines.append(f'      <pose>{center_x} {center_y} 0.25 0 0 1.5708</pose>')
+                lines.append(f'      <pose>{center_x} {center_y} 0.25 0 0 0</pose>')
                 lines.append(f'      <link name="link">')
                 lines.append(f'        <collision name="collision">')
                 lines.append(f'          <geometry>')
                 lines.append(f'            <box>')
-                lines.append(f'              <size>{length} {wall_thickness} 0.5</size>')
+                lines.append(f'              <size>{wall_thickness} {length} 0.5</size>')
                 lines.append(f'            </box>')
                 lines.append(f'          </geometry>')
                 lines.append(f'        </collision>')
                 lines.append(f'        <visual name="visual">')
                 lines.append(f'          <geometry>')
                 lines.append(f'            <box>')
-                lines.append(f'              <size>{length} {wall_thickness} 0.5</size>')
+                lines.append(f'              <size>{wall_thickness} {length} 0.5</size>')
                 lines.append(f'            </box>')
                 lines.append(f'          </geometry>')
                 lines.append(f'          <material>')
@@ -267,7 +419,16 @@ def generate_gazebo_world(
         marker_id += 1
     
     # Add drone (optionally without ROS plugins)
-    start_x, start_y = maze.cell_to_world_center(0, 0)
+    # Place drone at center of cell (0, 0)
+    # Cell center is at: middle of the 4 markers of that cell
+    # Markers of cell (0, 0) are at:
+    #   Top-left: start_offset, start_offset
+    #   Top-right: start_offset + marker_spacing, start_offset
+    #   Bottom-left: start_offset, start_offset + marker_spacing
+    #   Bottom-right: start_offset + marker_spacing, start_offset + marker_spacing
+    # Center: start_offset + marker_spacing/2, start_offset + marker_spacing/2
+    start_x = start_offset + marker_spacing / 2.0
+    start_y = start_offset + marker_spacing / 2.0
     drone_model_file = 'model.sdf' if use_ros_plugins else 'model_no_ros.sdf'
     drone_model_path = os.path.join(models_dir, 'drone', drone_model_file)
     lines.append('    <!-- Drone -->')
@@ -298,8 +459,8 @@ def main():
     parser.add_argument('--cols', type=int, default=5, help='Maze columns')
     parser.add_argument('--cellSize', type=float, default=1.0, help='Cell size in meters')
     parser.add_argument('--markerSize', type=float, default=0.1, help='Marker size in meters')
-    parser.add_argument('--colRadius', type=float, default=0.05, help='Column radius')
-    parser.add_argument('--wallThickness', type=float, default=0.02, help='Wall thickness')
+    parser.add_argument('--colRadius', type=float, default=0.01, help='Column radius (default: 0.01)')
+    parser.add_argument('--wallThickness', type=float, default=0.005, help='Wall thickness (default: 0.005)')
     parser.add_argument('--seed', type=int, default=None, help='Random seed')
     parser.add_argument('--out', type=str, default='gazebo/worlds/generated_maze.world', help='Output file')
     parser.add_argument('--no-ros', action='store_true', help='Use drone model without ROS plugins')

@@ -13,18 +13,39 @@ from maze import Maze
 class MarkerPlacement:
     """Manages ArUco marker placement in the maze."""
     
-    def __init__(self, maze: Maze, marker_size: float = 0.1, dictionary_id: int = cv2.aruco.DICT_4X4_1000):
+    def __init__(self, maze: Maze, marker_size: float = None, dictionary_id: int = cv2.aruco.DICT_4X4_1000):
         """
         Initialize marker placement.
         
         Args:
             maze: The maze
-            marker_size: Size of markers in meters (default: 0.1)
+            marker_size: Size of markers in meters. If None, calculated to fit cell with 
+                        border distance = marker_size/2 (default: None)
             dictionary_id: ArUco dictionary ID (default: DICT_4X4_1000)
         """
         self.maze = maze
-        self.marker_size = marker_size
-        self.gap = 0.5 * marker_size  # Gap between markers
+        # Markers are placed in a uniform grid
+        # Gap between markers = marker_size/2
+        # Marker spacing (center to center) = marker_size + gap = 1.5*marker_size
+        # Each cell has 2 markers in each direction
+        # Cell size = 2 * marker_spacing = 2 * 1.5*marker_size = 3*marker_size
+        # Therefore: marker_size = cell_size/3
+        # But we can also calculate cell_size from marker_size if needed
+        max_marker_size = maze.cell_size / 3.0
+        
+        if marker_size is None:
+            # Calculate optimal size based on constraint
+            self.marker_size = max_marker_size
+        else:
+            # Use specified size, but cap at maximum that allows constraint
+            self.marker_size = min(marker_size, max_marker_size)
+        
+        # Calculate gap based on layout: 3*gap + 2*marker_size = cell_size
+        # gap = (cell_size - 2*marker_size) / 3
+        # With marker_size = cell_size/4: gap = (cell_size - cell_size/2) / 3 = cell_size/6
+        # But user wants gap = marker_size/2, so let's use that
+        # This means marker_size will be adjusted if needed
+        self.gap = 0.5 * self.marker_size  # Gap between markers = marker_size/2
         self.dictionary = cv2.aruco.getPredefinedDictionary(dictionary_id)
         
         # Store marker positions: {marker_id: (x, y, yaw, quadrant)}
@@ -34,50 +55,68 @@ class MarkerPlacement:
         self._place_markers()
     
     def _place_markers(self) -> None:
-        """Place markers for each cell in a 2x2 pattern on the floor."""
+        """Place markers in a uniform grid.
+        
+        Markers are placed in a uniform grid where:
+        - Gap between adjacent markers = marker_size/2
+        - Each cell has 4 markers in a 2x2 pattern
+        - Markers are evenly spaced across all cells
+        - Walls will be placed in the middle between adjacent markers
+        """
+        # Gap between marker centers = marker_size + gap = marker_size + marker_size/2 = 1.5*marker_size
+        marker_spacing = self.marker_size + self.gap
+        
+        # For R x C cells, we have (2*R) x (2*C) markers in total
+        # Start position: first marker at (marker_size/2, marker_size/2) from origin
+        # This ensures gap = marker_size/2 from edges
+        start_offset = self.marker_size / 2.0 + self.gap
+        
         for r in range(self.maze.rows):
             for c in range(self.maze.cols):
-                # Get cell center
-                cell_x, cell_y = self.maze.cell_to_world_center(r, c)
+                # Calculate marker positions in uniform grid
+                # Each cell has 4 markers at positions:
+                # (2*c, 2*r), (2*c+1, 2*r), (2*c, 2*r+1), (2*c+1, 2*r+1) in marker grid
                 
-                # Calculate offsets for 2x2 pattern
-                # Total footprint = 2*markerSize + gap
-                # Marker centers at +/- (markerSize/2 + gap/2)
-                offset = self.marker_size / 2.0 + self.gap / 2.0
-                
-                # Place 4 markers
-                # Quadrant 0: top-left (relative to cell center)
+                # Top-left marker of cell (r, c)
+                grid_x_0 = 2 * c
+                grid_y_0 = 2 * r
                 marker_id_0 = self._encode_id(r, c, 0)
                 self.markers[marker_id_0] = (
-                    cell_x - offset,
-                    cell_y - offset,
-                    0.0,  # yaw = 0 (facing up)
+                    start_offset + grid_x_0 * marker_spacing,
+                    start_offset + grid_y_0 * marker_spacing,
+                    0.0,
                     0
                 )
                 
-                # Quadrant 1: top-right
+                # Top-right marker
+                grid_x_1 = 2 * c + 1
+                grid_y_1 = 2 * r
                 marker_id_1 = self._encode_id(r, c, 1)
                 self.markers[marker_id_1] = (
-                    cell_x + offset,
-                    cell_y - offset,
+                    start_offset + grid_x_1 * marker_spacing,
+                    start_offset + grid_y_1 * marker_spacing,
                     0.0,
                     1
                 )
                 
-                # Quadrant 2: bottom-left
+                # Bottom-left marker
+                grid_x_2 = 2 * c
+                grid_y_2 = 2 * r + 1
                 marker_id_2 = self._encode_id(r, c, 2)
                 self.markers[marker_id_2] = (
-                    cell_x - offset,
-                    cell_y + offset,
+                    start_offset + grid_x_2 * marker_spacing,
+                    start_offset + grid_y_2 * marker_spacing,
                     0.0,
                     2
                 )
                 
-                # Quadrant 3: bottom-right
+                # Bottom-right marker
+                grid_x_3 = 2 * c + 1
+                grid_y_3 = 2 * r + 1
                 marker_id_3 = self._encode_id(r, c, 3)
                 self.markers[marker_id_3] = (
-                    cell_x + offset,
-                    cell_y + offset,
+                    start_offset + grid_x_3 * marker_spacing,
+                    start_offset + grid_y_3 * marker_spacing,
                     0.0,
                     3
                 )
