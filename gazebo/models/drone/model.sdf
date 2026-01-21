@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="quadrotor">
+    <pose>0 0 1 0 0 0</pose>
+    
+    <link name="base_link">
+      <inertial>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.029125</ixx>
+          <iyy>0.029125</iyy>
+          <izz>0.055225</izz>
+        </inertia>
+      </inertial>
+      
+      <collision name="collision">
+        <geometry>
+          <cylinder>
+            <radius>0.1</radius>
+            <length>0.1</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      
+      <visual name="visual">
+        <geometry>
+          <cylinder>
+            <radius>0.1</radius>
+            <length>0.1</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+            <name>Gazebo/Red</name>
+          </script>
+        </material>
+      </visual>
+      
+      <!-- Downward-facing camera -->
+      <sensor name="camera" type="camera">
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>10</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <!-- Camera sensor works natively in Gazebo; bridge to ROS 2 using ros_gz_image -->
+      </sensor>
+    </link>
+    
+    <!-- Camera link (pointing down) -->
+    <link name="camera_link">
+      <pose>0 0 -0.05 0 1.5708 0</pose>
+      <visual name="visual">
+        <geometry>
+          <box>
+            <size>0.02 0.02 0.02</size>
+          </box>
+        </geometry>
+      </visual>
+    </link>
+    
+    <joint name="camera_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>camera_link</child>
+    </joint>
+    
+    <!-- Odometry publisher system (Gazebo native) -->
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_topic>odom</odom_topic>
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_link</robot_base_frame>
+      <publish_link_pose>true</publish_link_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
+      <update_rate>50</update_rate>
+    </plugin>
+    
+    <!-- Velocity control: cmd_vel will be handled via ROS 2 bridge -->
+    <!-- See setup_ros2_bridge.sh for bridging Gazebo topics to ROS 2 -->
+    <!-- For quadrotor control, you may need a custom controller node that -->
+    <!-- subscribes to /cmd_vel and applies forces/torques to the drone -->
+    
+  </model>
+</sdf>

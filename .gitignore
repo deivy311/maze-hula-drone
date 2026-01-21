@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated files
+gazebo/worlds/generated_maze.world
+*.png
+!gazebo/models/aruco_marker/textures/*.png
+
+# Build
+build/
+dist/
+*.egg-info/
