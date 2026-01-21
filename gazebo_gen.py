@@ -191,10 +191,16 @@ def generate_gazebo_world(
                 # Middle point
                 y = (bottom_corner_y + top_corner_y) / 2.0
             column_model_path = os.path.join(models_dir, 'column', 'model.sdf')
+            # Columns: from floor (0.0m) to half the previous height
+            column_bottom = 0.0
+            column_height = 0.9  # Half of 1.8m
+            column_top = column_bottom + column_height  # 0.9m
+            column_center_z = (column_bottom + column_top) / 2.0  # 0.45m
+            
             lines.append(f'    <!-- Column at cell corner ({r}, {c}) -->')
             lines.append(f'    <include>')
             lines.append(f'      <name>column_{col_id}</name>')
-            lines.append(f'      <pose>{x} {y} 0.25 0 0 0</pose>')
+            lines.append(f'      <pose>{x} {y} {column_center_z} 0 0 0</pose>')
             lines.append(f'      <uri>file://{column_model_path}</uri>')
             lines.append(f'    </include>')
             lines.append('    ')
@@ -266,22 +272,29 @@ def generate_gazebo_world(
                 center_y = y
                 length = x_end - x_start
                 
+                # Wall height: from 0.3m (3x the previous 0.1m gap) to half the previous height
+                floor_gap = 0.3  # 3x the previous 0.1m
+                wall_bottom = floor_gap
+                wall_height = 0.75  # Half of 1.5m
+                wall_top = wall_bottom + wall_height  # 1.05m
+                wall_center_z = (wall_bottom + wall_top) / 2.0  # 0.675m
+                
                 lines.append(f'    <!-- Horizontal wall between columns at row {r}, cols {c} and {c+1} -->')
                 lines.append(f'    <model name="wall_h_{wall_id}">')
                 lines.append(f'      <static>true</static>')
-                lines.append(f'      <pose>{center_x} {center_y} 0.25 0 0 0</pose>')
+                lines.append(f'      <pose>{center_x} {center_y} {wall_center_z} 0 0 0</pose>')
                 lines.append(f'      <link name="link">')
                 lines.append(f'        <collision name="collision">')
                 lines.append(f'          <geometry>')
                 lines.append(f'            <box>')
-                lines.append(f'              <size>{length} {wall_thickness} 0.5</size>')
+                lines.append(f'              <size>{length} {wall_thickness} {wall_height}</size>')
                 lines.append(f'            </box>')
                 lines.append(f'          </geometry>')
                 lines.append(f'        </collision>')
                 lines.append(f'        <visual name="visual">')
                 lines.append(f'          <geometry>')
                 lines.append(f'            <box>')
-                lines.append(f'              <size>{length} {wall_thickness} 0.5</size>')
+                lines.append(f'              <size>{length} {wall_thickness} {wall_height}</size>')
                 lines.append(f'            </box>')
                 lines.append(f'          </geometry>')
                 lines.append(f'          <material>')
@@ -342,22 +355,29 @@ def generate_gazebo_world(
                 center_y = (y_start + y_end) / 2.0
                 length = y_end - y_start
                 
+                # Wall height: from 0.3m (3x the previous 0.1m gap) to half the previous height
+                floor_gap = 0.3  # 3x the previous 0.1m
+                wall_bottom = floor_gap
+                wall_height = 0.75  # Half of 1.5m
+                wall_top = wall_bottom + wall_height  # 1.05m
+                wall_center_z = (wall_bottom + wall_top) / 2.0  # 0.675m
+                
                 lines.append(f'    <!-- Vertical wall between columns at col {c}, rows {r} and {r+1} -->')
                 lines.append(f'    <model name="wall_v_{wall_id}">')
                 lines.append(f'      <static>true</static>')
-                lines.append(f'      <pose>{center_x} {center_y} 0.25 0 0 0</pose>')
+                lines.append(f'      <pose>{center_x} {center_y} {wall_center_z} 0 0 0</pose>')
                 lines.append(f'      <link name="link">')
                 lines.append(f'        <collision name="collision">')
                 lines.append(f'          <geometry>')
                 lines.append(f'            <box>')
-                lines.append(f'              <size>{wall_thickness} {length} 0.5</size>')
+                lines.append(f'              <size>{wall_thickness} {length} {wall_height}</size>')
                 lines.append(f'            </box>')
                 lines.append(f'          </geometry>')
                 lines.append(f'        </collision>')
                 lines.append(f'        <visual name="visual">')
                 lines.append(f'          <geometry>')
                 lines.append(f'            <box>')
-                lines.append(f'              <size>{wall_thickness} {length} 0.5</size>')
+                lines.append(f'              <size>{wall_thickness} {length} {wall_height}</size>')
                 lines.append(f'            </box>')
                 lines.append(f'          </geometry>')
                 lines.append(f'          <material>')
@@ -480,49 +500,112 @@ def generate_gazebo_world(
                 continue
             
             # Calculate cell center using same system as ArUcos
-            # Cell (r, c) center is at: start_offset + (2*c+1)*marker_spacing/2, start_offset + (2*r+1)*marker_spacing/2
-            # Which simplifies to: start_offset + marker_spacing*(c + 0.5), start_offset + marker_spacing*(r + 0.5)
+            # Cell (r, c) center is at: start_offset + marker_spacing*(c + 0.5), start_offset + marker_spacing*(r + 0.5)
             cell_center_x = start_offset + marker_spacing * (obj_x + 0.5)
             cell_center_y = start_offset + marker_spacing * (obj_y + 0.5)
             
-            # Half cell size in the marker coordinate system
-            half_cell = marker_spacing
-            
-            # Calculate position on wall based on direction
-            # Objects are placed on the wall facing the specified direction
+            # Calculate wall position using same logic as columns/walls
+            # Walls are at the same positions as columns (middle between ArUcos)
+            # For North wall: between row r and r+1 of ArUcos
+            # For East wall: between col c and c+1 of ArUcos
             if obj_direction == 'North':
-                # On North wall (top of cell)
+                # North wall is at the boundary between this cell and the cell above
+                # Wall Y position: same as column at row r+1 (if exists) or boundary
+                if obj_y == maze.rows - 1:
+                    # Top boundary
+                    wall_y = start_offset - marker_size / 2.0 - gap / 2.0 + (2 * (obj_y + 1)) * marker_spacing
+                else:
+                    # Middle between ArUcos at row 2*r+1 and 2*r+2
+                    top_aruco_center = start_offset + (2 * obj_y + 1) * marker_spacing
+                    bottom_corner_y = top_aruco_center + marker_size / 2.0
+                    bottom_aruco_center = start_offset + (2 * (obj_y + 1)) * marker_spacing
+                    top_corner_y = bottom_aruco_center - marker_size / 2.0
+                    wall_y = (bottom_corner_y + top_corner_y) / 2.0
                 wall_x = cell_center_x
-                wall_y = cell_center_y + half_cell
+                wall_roll = 0.0
+                wall_pitch = 1.5708  # 90 degrees - rotate to stand vertical
                 wall_yaw = 0.0  # Facing North
             elif obj_direction == 'East':
-                # On East wall (right side of cell)
-                wall_x = cell_center_x + half_cell
+                # East wall is at the boundary between this cell and the cell to the right
+                if obj_x == maze.cols - 1:
+                    # Right boundary
+                    wall_x = start_offset - marker_size / 2.0 - gap / 2.0 + (2 * (obj_x + 1)) * marker_spacing
+                else:
+                    # Middle between ArUcos at col 2*c+1 and 2*c+2
+                    left_aruco_center = start_offset + (2 * obj_x + 1) * marker_spacing
+                    right_corner_x = left_aruco_center + marker_size / 2.0
+                    right_aruco_center = start_offset + (2 * (obj_x + 1)) * marker_spacing
+                    left_corner_x = right_aruco_center - marker_size / 2.0
+                    wall_x = (right_corner_x + left_corner_x) / 2.0
                 wall_y = cell_center_y
-                wall_yaw = 1.5708  # 90 degrees, facing East
+                wall_roll = 0.0
+                wall_pitch = 1.5708  # 90 degrees - rotate to stand vertical
+                wall_yaw = 1.5708  # 90 degrees - facing East
             elif obj_direction == 'South':
-                # On South wall (bottom of cell)
+                # South wall is at the boundary between this cell and the cell below
+                if obj_y == 0:
+                    # Bottom boundary
+                    wall_y = start_offset - marker_size / 2.0 - gap / 2.0
+                else:
+                    # Middle between ArUcos at row 2*r-1 and 2*r
+                    top_aruco_center = start_offset + (2 * obj_y - 1) * marker_spacing
+                    bottom_corner_y = top_aruco_center + marker_size / 2.0
+                    bottom_aruco_center = start_offset + 2 * obj_y * marker_spacing
+                    top_corner_y = bottom_aruco_center - marker_size / 2.0
+                    wall_y = (bottom_corner_y + top_corner_y) / 2.0
                 wall_x = cell_center_x
-                wall_y = cell_center_y - half_cell
-                wall_yaw = 3.14159  # 180 degrees, facing South
+                wall_roll = 0.0
+                wall_pitch = 1.5708  # 90 degrees - rotate to stand vertical
+                wall_yaw = 3.14159  # 180 degrees - facing South
             else:  # West
-                # On West wall (left side of cell)
-                wall_x = cell_center_x - half_cell
+                # West wall is at the boundary between this cell and the cell to the left
+                if obj_x == 0:
+                    # Left boundary
+                    wall_x = start_offset - marker_size / 2.0 - gap / 2.0
+                else:
+                    # Middle between ArUcos at col 2*c-1 and 2*c
+                    left_aruco_center = start_offset + (2 * obj_x - 1) * marker_spacing
+                    right_corner_x = left_aruco_center + marker_size / 2.0
+                    right_aruco_center = start_offset + 2 * obj_x * marker_spacing
+                    left_corner_x = right_aruco_center - marker_size / 2.0
+                    wall_x = (right_corner_x + left_corner_x) / 2.0
                 wall_y = cell_center_y
-                wall_yaw = -1.5708  # -90 degrees, facing West
+                wall_roll = 0.0
+                wall_pitch = 1.5708  # 90 degrees - rotate to stand vertical
+                wall_yaw = -1.5708  # -90 degrees - facing West
             
-            # Create a plane with the image as texture
-            # The plane normal should face outward from the wall
-            # For North wall: normal should be (0, 1, 0) - facing North
-            # For East wall: normal should be (1, 0, 0) - facing East
-            # For South wall: normal should be (0, -1, 0) - facing South
-            # For West wall: normal should be (-1, 0, 0) - facing West
-            # But in Gazebo, planes use normal (0, 0, 1) and we rotate the model
+            # Create a thin box (vertical plane) with the image as texture
+            # Box size: width (X) x height (Y) x depth (Z)
+            # After pitch=90 rotation, the box stands vertical
+            # Position the image on the wall surface (slightly offset to avoid z-fighting)
+            
+            # Offset from wall surface: half wall thickness + half box depth + small gap
+            wall_thickness_half = 0.0025  # Half of 0.005m wall thickness
+            box_depth_half = 0.0005  # Half of 0.001m box depth
+            gap = 0.001  # Small gap to avoid z-fighting
+            offset_distance = wall_thickness_half + box_depth_half + gap
+            
+            if obj_direction == 'North':
+                # Move North (positive Y) from wall center to surface
+                image_x = wall_x
+                image_y = wall_y + offset_distance
+            elif obj_direction == 'East':
+                # Move East (positive X) from wall center to surface
+                image_x = wall_x + offset_distance
+                image_y = wall_y
+            elif obj_direction == 'South':
+                # Move South (negative Y) from wall center to surface
+                image_x = wall_x
+                image_y = wall_y - offset_distance
+            else:  # West
+                # Move West (negative X) from wall center to surface
+                image_x = wall_x - offset_distance
+                image_y = wall_y
             
             lines.append(f'    <!-- Object {object_id}: {obj_type} image at cell ({obj_x}, {obj_y}), direction {obj_direction} -->')
             lines.append(f'    <model name="object_image_{object_id}">')
             lines.append(f'      <static>true</static>')
-            lines.append(f'      <pose>{wall_x} {wall_y} {object_height} 0 0 {wall_yaw}</pose>')
+            lines.append(f'      <pose>{image_x} {image_y} {object_height} {wall_roll} {wall_pitch} {wall_yaw}</pose>')
             lines.append(f'      <link name="link">')
             lines.append(f'        <collision name="collision">')
             lines.append(f'          <geometry>')

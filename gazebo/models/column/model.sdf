@@ -7,7 +7,7 @@
         <geometry>
           <cylinder>
             <radius>0.01</radius>
-            <length>0.5</length>
+            <length>0.9</length>
           </cylinder>
         </geometry>
       </collision>
@@ -15,7 +15,7 @@
         <geometry>
           <cylinder>
             <radius>0.01</radius>
-            <length>0.5</length>
+            <length>0.9</length>
           </cylinder>
         </geometry>
         <material>
