@@ -16,8 +16,8 @@
       <collision name="collision">
         <geometry>
           <cylinder>
-            <radius>0.1</radius>
-            <length>0.1</length>
+            <radius>0.15</radius>
+            <length>0.15</length>
           </cylinder>
         </geometry>
       </collision>
@@ -25,15 +25,64 @@
       <visual name="visual">
         <geometry>
           <cylinder>
-            <radius>0.1</radius>
-            <length>0.1</length>
+            <radius>0.15</radius>
+            <length>0.15</length>
           </cylinder>
         </geometry>
         <material>
-          <script>
-            <uri>file://media/materials/scripts/gazebo.material</uri>
-            <name>Gazebo/Red</name>
-          </script>
+          <ambient>1.0 0.0 0.0 1.0</ambient>
+          <diffuse>1.0 0.0 0.0 1.0</diffuse>
+          <specular>0.5 0.5 0.5 1.0</specular>
+        </material>
+      </visual>
+      
+      <!-- Add arms/propellers for better visibility (horizontal, above body) -->
+      <visual name="arm_1">
+        <pose>0.2 0.0 0.08 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.3 0.02 0.02</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.2 0.2 0.2 1.0</ambient>
+          <diffuse>0.2 0.2 0.2 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name="arm_2">
+        <pose>-0.2 0.0 0.08 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.3 0.02 0.02</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.2 0.2 0.2 1.0</ambient>
+          <diffuse>0.2 0.2 0.2 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name="arm_3">
+        <pose>0.0 0.2 0.08 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.02 0.3 0.02</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.2 0.2 0.2 1.0</ambient>
+          <diffuse>0.2 0.2 0.2 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name="arm_4">
+        <pose>0.0 -0.2 0.08 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.02 0.3 0.02</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.2 0.2 0.2 1.0</ambient>
+          <diffuse>0.2 0.2 0.2 1.0</diffuse>
         </material>
       </visual>
       

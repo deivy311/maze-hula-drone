@@ -211,15 +211,20 @@ def generate_gazebo_world(
     generated_textures = {}
     for marker_id_val, (mx, my, myaw, quadrant) in marker_placement.markers.items():
         if marker_id_val not in generated_textures:
-            # Generate ArUco marker image
+            # Generate ArUco marker image (grayscale)
             marker_img = marker_placement.get_marker_image(marker_id_val, size_pixels=512)
             # Resize and add white border
             marker_img = cv2.resize(marker_img, (512, 512), interpolation=cv2.INTER_NEAREST)
             border_size = 64
             bordered = cv2.copyMakeBorder(marker_img, border_size, border_size, border_size, border_size, cv2.BORDER_CONSTANT, value=255)
-            # Save texture
+            # Convert grayscale to RGB (3 channels) for better Gazebo compatibility
+            if len(bordered.shape) == 2:
+                bordered_rgb = cv2.cvtColor(bordered, cv2.COLOR_GRAY2RGB)
+            else:
+                bordered_rgb = bordered
+            # Save texture as RGB PNG
             texture_file = os.path.join(textures_dir, f"marker_{marker_id_val}.png")
-            cv2.imwrite(texture_file, bordered)
+            cv2.imwrite(texture_file, bordered_rgb)
             generated_textures[marker_id_val] = texture_file
     
     # Now add markers to world with textures
@@ -229,28 +234,28 @@ def generate_gazebo_world(
         lines.append(f'    <!-- ArUco marker ID {marker_id_val} at ({mx:.3f}, {my:.3f}) -->')
         lines.append(f'    <model name="aruco_{marker_id}">')
         lines.append(f'      <static>true</static>')
-        lines.append(f'      <pose>{mx} {my} 0.0005 0 0 {myaw}</pose>')
+        lines.append(f'      <pose>{mx} {my} 0.001 0 0 {myaw}</pose>')
         lines.append(f'      <link name="link">')
         texture_path = generated_textures[marker_id_val]
         abs_texture_path = os.path.abspath(texture_path)
         lines.append(f'        <collision name="collision">')
         lines.append(f'          <geometry>')
         lines.append(f'            <box>')
-        lines.append(f'              <size>{marker_placement.marker_size} {marker_placement.marker_size} 0.001</size>')
+        lines.append(f'              <size>{marker_placement.marker_size} {marker_placement.marker_size} 0.002</size>')
         lines.append(f'            </box>')
         lines.append(f'          </geometry>')
         lines.append(f'        </collision>')
         lines.append(f'        <visual name="visual">')
         lines.append(f'          <geometry>')
         lines.append(f'            <box>')
-        lines.append(f'              <size>{marker_placement.marker_size} {marker_placement.marker_size} 0.001</size>')
+        lines.append(f'              <size>{marker_placement.marker_size} {marker_placement.marker_size} 0.002</size>')
         lines.append(f'            </box>')
         lines.append(f'          </geometry>')
         lines.append(f'          <material>')
         lines.append(f'            <pbr>')
         lines.append(f'              <metal>')
         lines.append(f'                <albedo_map>file://{abs_texture_path}</albedo_map>')
-        lines.append(f'                <roughness>1.0</roughness>')
+        lines.append(f'                <roughness>0.8</roughness>')
         lines.append(f'                <metalness>0.0</metalness>')
         lines.append(f'              </metal>')
         lines.append(f'            </pbr>')
