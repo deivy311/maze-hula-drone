@@ -522,8 +522,10 @@ def generate_gazebo_world(
                     top_corner_y = bottom_aruco_center - marker_size / 2.0
                     wall_y = (bottom_corner_y + top_corner_y) / 2.0
                 wall_x = cell_center_x
-                wall_roll = 0.0
-                wall_pitch = 1.5708  # 90 degrees - rotate to stand vertical
+                # For North wall: plane needs to be vertical, facing Y+
+                # Use roll=90 to rotate around X axis, making it vertical
+                wall_roll = 1.5708  # 90 degrees - rotate to stand vertical
+                wall_pitch = 0.0
                 wall_yaw = 0.0  # Facing North
             elif obj_direction == 'East':
                 # East wall is at the boundary between this cell and the cell to the right
@@ -538,8 +540,9 @@ def generate_gazebo_world(
                     left_corner_x = right_aruco_center - marker_size / 2.0
                     wall_x = (right_corner_x + left_corner_x) / 2.0
                 wall_y = cell_center_y
-                wall_roll = 0.0
-                wall_pitch = 1.5708  # 90 degrees - rotate to stand vertical
+                # For East wall: plane needs to be vertical, facing X+
+                wall_roll = 1.5708  # 90 degrees - rotate to stand vertical
+                wall_pitch = 0.0
                 wall_yaw = 1.5708  # 90 degrees - facing East
             elif obj_direction == 'South':
                 # South wall is at the boundary between this cell and the cell below
@@ -554,8 +557,9 @@ def generate_gazebo_world(
                     top_corner_y = bottom_aruco_center - marker_size / 2.0
                     wall_y = (bottom_corner_y + top_corner_y) / 2.0
                 wall_x = cell_center_x
-                wall_roll = 0.0
-                wall_pitch = 1.5708  # 90 degrees - rotate to stand vertical
+                # For South wall: plane needs to be vertical, facing Y-
+                wall_roll = 1.5708  # 90 degrees - rotate to stand vertical
+                wall_pitch = 0.0
                 wall_yaw = 3.14159  # 180 degrees - facing South
             else:  # West
                 # West wall is at the boundary between this cell and the cell to the left
@@ -570,8 +574,9 @@ def generate_gazebo_world(
                     left_corner_x = right_aruco_center - marker_size / 2.0
                     wall_x = (right_corner_x + left_corner_x) / 2.0
                 wall_y = cell_center_y
-                wall_roll = 0.0
-                wall_pitch = 1.5708  # 90 degrees - rotate to stand vertical
+                # For West wall: plane needs to be vertical, facing X-
+                wall_roll = 1.5708  # 90 degrees - rotate to stand vertical
+                wall_pitch = 0.0
                 wall_yaw = -1.5708  # -90 degrees - facing West
             
             # Create a thin box (vertical plane) with the image as texture
@@ -580,9 +585,10 @@ def generate_gazebo_world(
             # Position the image on the wall surface (slightly offset to avoid z-fighting)
             
             # Offset from wall surface: half wall thickness + half box depth + small gap
+            # With roll=90, the box depth is now in Y direction
             wall_thickness_half = 0.0025  # Half of 0.005m wall thickness
-            box_depth_half = 0.0005  # Half of 0.001m box depth
-            gap = 0.001  # Small gap to avoid z-fighting
+            box_depth_half = 0.0005  # Half of 0.001m box depth (now in Y direction)
+            gap = 0.002  # Small gap to avoid z-fighting
             offset_distance = wall_thickness_half + box_depth_half + gap
             
             if obj_direction == 'North':
@@ -607,18 +613,32 @@ def generate_gazebo_world(
             lines.append(f'      <static>true</static>')
             lines.append(f'      <pose>{image_x} {image_y} {object_height} {wall_roll} {wall_pitch} {wall_yaw}</pose>')
             lines.append(f'      <link name="link">')
+            # Use plane geometry which is better for wall-mounted images
+            # Plane normal points in the direction the image faces
+            # With pitch=90, the plane rotates to be vertical
+            if obj_direction == 'North':
+                plane_normal = '0 1 0'  # Normal pointing North (Y+)
+            elif obj_direction == 'East':
+                plane_normal = '1 0 0'  # Normal pointing East (X+)
+            elif obj_direction == 'South':
+                plane_normal = '0 -1 0'  # Normal pointing South (Y-)
+            else:  # West
+                plane_normal = '-1 0 0'  # Normal pointing West (X-)
+            
             lines.append(f'        <collision name="collision">')
             lines.append(f'          <geometry>')
-            lines.append(f'            <box>')
-            lines.append(f'              <size>{object_size} {object_size} 0.001</size>')
-            lines.append(f'            </box>')
+            lines.append(f'            <plane>')
+            lines.append(f'              <normal>{plane_normal}</normal>')
+            lines.append(f'              <size>{object_size} {object_size}</size>')
+            lines.append(f'            </plane>')
             lines.append(f'          </geometry>')
             lines.append(f'        </collision>')
             lines.append(f'        <visual name="visual">')
             lines.append(f'          <geometry>')
-            lines.append(f'            <box>')
-            lines.append(f'              <size>{object_size} {object_size} 0.001</size>')
-            lines.append(f'            </box>')
+            lines.append(f'            <plane>')
+            lines.append(f'              <normal>{plane_normal}</normal>')
+            lines.append(f'              <size>{object_size} {object_size}</size>')
+            lines.append(f'            </plane>')
             lines.append(f'          </geometry>')
             # Use model:// URI format which is the standard for Gazebo
             object_texture_uri = f"model://object_images/textures/{os.path.basename(abs_image_path)}"
